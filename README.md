@@ -47,4 +47,62 @@ Built with:
 ---
 
 ## 🗂 Project Structure
+study-coach/
+│
+├── backend/
+│ ├── app.py
+│ ├── models.py
+│ ├── routes/
+│ ├── services/
+│ └── requirements.txt
+│
+└── frontend/
+├── src/
+│ ├── App.tsx
+│ ├── api/
+│ └── components/
+├── package.json
+└── vite.config.ts
 
+
+---
+
+## 🛠️ Local Development
+
+### Backend (Flask)
+
+
+
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python3 app.py
+
+---
+
+### Frontend (React + Vite)
+
+
+
+cd frontend
+npm install
+npm run dev
+
+---
+
+## 🎯 Purpose
+
+Study Coach aims to become an intelligent academic assistant that understands syllabi, deadlines, and pacing to generate optimized study schedules tailored to each student.
+
+---
+
+## 🤝 Contributing
+
+This project is in early development. Suggestions and feature ideas are welcome.
+
+---
+
+## 📄 License
+
+License will be added once project direction is finalized.
