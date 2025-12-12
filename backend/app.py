@@ -109,6 +109,7 @@ def file_too_large(error):
 
 
 if __name__ == "__main__":
-    # For development only
+    # Can be used in production as fallback if gunicorn fails
     port = int(os.getenv("PORT", 5001))
-    app.run(debug=os.getenv("FLASK_ENV") != "production", port=port, host="0.0.0.0")
+    debug_mode = os.getenv("FLASK_ENV") != "production" and os.getenv("ENVIRONMENT") != "production"
+    app.run(debug=debug_mode, port=port, host="0.0.0.0")

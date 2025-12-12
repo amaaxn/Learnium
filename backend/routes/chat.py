@@ -43,5 +43,12 @@ def send_message(user_id):
         }), 200
     
     except Exception as e:
-        print(f"Error in chat endpoint: {e}")
+        import logging
+        import os
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in chat endpoint: {e}", exc_info=True)
+        
+        # Don't expose internal errors in production
+        if os.getenv("FLASK_ENV") == "production":
+            return jsonify({"error": "Failed to get response. Please try again."}), 500
         return jsonify({"error": f"Failed to get response: {str(e)}"}), 500
