@@ -15,7 +15,18 @@ from routes.materials import materials_bp
 from routes.chat import chat_bp
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
+
+# CORS Configuration - restrict to production domain in production
+if os.getenv("FLASK_ENV") == "production":
+    frontend_url = os.getenv("FRONTEND_URL", "")
+    if frontend_url:
+        CORS(app, origins=[frontend_url], supports_credentials=True)
+    else:
+        # Fallback: allow all if FRONTEND_URL not set (should set this!)
+        CORS(app, supports_credentials=True)
+else:
+    # Development: allow all origins
+    CORS(app, supports_credentials=True)
 
 # JWT Configuration
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
@@ -44,4 +55,6 @@ def health():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    # For development only
+    port = int(os.getenv("PORT", 5001))
+    app.run(debug=os.getenv("FLASK_ENV") != "production", port=port, host="0.0.0.0")
