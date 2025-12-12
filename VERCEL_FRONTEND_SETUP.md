@@ -73,21 +73,13 @@ After redeploy, check:
 
 ---
 
-## Alternative: Use vercel.json
+## ⚠️ Important: Don't Use Both!
 
-If Root Directory setting doesn't work, create `vercel.json` in project root:
+**DO NOT** create a `vercel.json` file if you've set Root Directory to `frontend`.
 
-```json
-{
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/dist",
-  "devCommand": "cd frontend && npm run dev",
-  "installCommand": "cd frontend && npm install",
-  "framework": "vite"
-}
-```
-
-But **Root Directory method is simpler and recommended**.
+- If Root Directory = `frontend`, Vercel automatically runs commands from that directory
+- Adding `cd frontend` in vercel.json causes the error: "No such file or directory"
+- **Just use Root Directory setting** - that's all you need!
 
 ---
 
