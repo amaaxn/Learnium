@@ -116,25 +116,26 @@ This guide covers deploying Learnium with a **custom domain** (not .vercel.app).
 
 2. **Configure DNS:**
    
-   **If using subdomain (learnium.yourdomain.com):**
-   - Go to your domain registrar (Namecheap, GoDaddy, etc.)
-   - Add DNS record:
-     - Type: `CNAME`
-     - Name: `learnium` (or `@` for root)
-     - Value: `cname.vercel-dns.com`
-     - TTL: Auto or 3600
-
-   **If using root domain (yourdomain.com):**
-   - Add DNS record:
-     - Type: `A`
-     - Name: `@`
-     - Value: `76.76.21.21`
-     - TTL: Auto
+   **For GoDaddy specifically (see GODADDY_DOMAIN_SETUP.md for detailed guide):**
    
-   **Also add for www (optional):**
-   - Type: `CNAME`
-   - Name: `www`
-   - Value: `cname.vercel-dns.com`
+   **If using root domain (learnium.co):**
+   - Go to GoDaddy → My Products → learnium.co → DNS
+   - Add A record:
+     - Type: `A`
+     - Name: `@` (or leave blank for root domain)
+     - Value: `76.76.21.21` (Vercel's IP)
+     - TTL: `600`
+   - Add CNAME for www (optional):
+     - Type: `CNAME`
+     - Name: `www`
+     - Value: `cname.vercel-dns.com`
+     - TTL: `600`
+   
+   **For other registrars:**
+   - Same DNS records as above
+   - Consult your registrar's DNS documentation if needed
+   
+   **Note:** Always check what Vercel shows in the Domains settings - they may provide specific values
 
 3. **Wait for DNS Propagation:**
    - Usually takes 5-60 minutes
