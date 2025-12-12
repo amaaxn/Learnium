@@ -72,8 +72,11 @@ function App() {
       api.get("/auth/me")
         .then((res) => {
           setUser(res.data);
+          setAuthenticated(true);
+          setCurrentPage("app");
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error("Token validation failed:", err);
           // Token invalid, logout
           localStorage.removeItem("access_token");
           localStorage.removeItem("user");
@@ -124,26 +127,54 @@ function App() {
   const handleLogin = () => {
     setPageTransition(true);
     const userStr = localStorage.getItem("user");
-    if (userStr) {
-      setUser(JSON.parse(userStr));
-      setAuthenticated(true);
-      setTimeout(() => {
-        setCurrentPage("app");
+    const token = localStorage.getItem("access_token");
+    
+    if (userStr && token) {
+      try {
+        setUser(JSON.parse(userStr));
+        setAuthenticated(true);
+        setTimeout(() => {
+          setCurrentPage("app");
+          setPageTransition(false);
+          // Update URL without reload
+          window.history.pushState({}, "", "/");
+        }, 300);
+      } catch (err) {
+        console.error("Error parsing user data:", err);
+        setAuthenticated(false);
+        setCurrentPage("login");
         setPageTransition(false);
-      }, 300);
+      }
+    } else {
+      setAuthenticated(false);
+      setCurrentPage("login");
+      setPageTransition(false);
     }
   };
 
   const handleRegister = () => {
     setPageTransition(true);
     const userStr = localStorage.getItem("user");
-    if (userStr) {
-      setUser(JSON.parse(userStr));
-      setAuthenticated(true);
-      setTimeout(() => {
-        setCurrentPage("app");
+    const token = localStorage.getItem("access_token");
+    if (userStr && token) {
+      try {
+        setUser(JSON.parse(userStr));
+        setAuthenticated(true);
+        setTimeout(() => {
+          setCurrentPage("app");
+          setPageTransition(false);
+          window.history.pushState({}, "", "/");
+        }, 300);
+      } catch (err) {
+        console.error("Error parsing user data:", err);
+        setAuthenticated(false);
+        setCurrentPage("login");
         setPageTransition(false);
-      }, 300);
+      }
+    } else {
+      setAuthenticated(false);
+      setCurrentPage("login");
+      setPageTransition(false);
     }
   };
 
@@ -177,6 +208,25 @@ function App() {
     );
   }
 
+  // Show loading state while checking auth
+  if (authenticated === null) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+        color: "#fff"
+      }}>
+        <div style={{ textAlign: "center" }}>
+          <div className="loading-spinner" style={{ width: "48px", height: "48px", borderWidth: "4px", margin: "0 auto 1rem" }}></div>
+          <p style={{ fontSize: "18px", fontFamily: "var(--font-body)", fontWeight: 600 }}>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Show login page
   if (currentPage === "login") {
     return (
@@ -195,7 +245,14 @@ function App() {
     );
   }
 
-  // Show main app
+  // Show main app (only if authenticated)
+  if (!authenticated) {
+    return (
+      <div className={pageTransition ? "page-transition-enter" : ""}>
+        <Login onLogin={handleLogin} />
+      </div>
+    );
+  }
 
   const selectedCourse =
     courses.find((c) => c.id === selectedCourseId) ?? null;

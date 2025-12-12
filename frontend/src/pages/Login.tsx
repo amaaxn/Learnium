@@ -40,9 +40,15 @@ export function Login({ onLogin }: LoginProps) {
         onLogin();
       }, 300);
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || "Failed to login. Please try again.";
+      console.error("Login error:", err);
+      const errorMessage = err.response?.data?.error || err.message || "Failed to login. Please check your credentials and try again.";
       setError(errorMessage);
       setLoading(false);
+      
+      // If it's a network error, provide helpful message
+      if (!err.response) {
+        setError("Cannot connect to server. Please check your internet connection or try again later.");
+      }
     }
   };
 
