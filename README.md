@@ -1,7 +1,7 @@
-# 📘 Study Coach  
+# 📘 Learnium  
 ### AI-Powered Personalized Study Planner
 
-Study Coach is a full-stack web application that helps students organize courses, parse syllabi, and automatically generate personalized study plans using AI.
+Learnium is a full-stack web application that helps students organize courses, parse syllabi, and automatically generate personalized study plans using AI. This intelligent study coach adapts to your learning style and creates optimized study schedules tailored to your academic needs.
 
 Built with:
 
@@ -160,8 +160,8 @@ For production, use:
 2. **Login**: Sign in at `/login`
 3. **Add Course**: Enter course details (name, term dates, exam date)
 4. **Upload Materials**: Upload PDF syllabi or course materials
-5. **Generate Plan**: Click "Generate plan" to create personalized study sessions
-6. **Study**: Follow the generated plan with specific content assignments
+5. **Generate Plan**: Click "Generate plan" to create personalized study sessions with your study coach
+6. **Study**: Follow the generated plan with specific content assignments tailored by your study coach
 
 ---
 

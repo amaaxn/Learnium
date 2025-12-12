@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ChangeEvent } from "react";
 import { api } from "./api/client";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
+import "./animations.css";
 
 interface Course {
   id: string;
@@ -35,6 +36,8 @@ function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [currentPage, setCurrentPage] = useState<"login" | "register" | "app">("app");
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [pageTransition, setPageTransition] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
   const [name, setName] = useState("");
   const [termStart, setTermStart] = useState("");
@@ -96,51 +99,97 @@ function App() {
     }
   }, [authenticated]);
 
+
+  const handleLogout = () => {
+    setLoggingOut(true);
+    
+    // Animate logout
+    setTimeout(() => {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("user");
+      setAuthenticated(false);
+      setUser(null);
+      setCurrentPage("login");
+      setCourses([]);
+      setSelectedCourseId(null);
+      setTasks([]);
+      setMaterials([]);
+      setLoggingOut(false);
+    }, 500);
+  };
+
   const handleLogin = () => {
+    setPageTransition(true);
     const userStr = localStorage.getItem("user");
     if (userStr) {
       setUser(JSON.parse(userStr));
       setAuthenticated(true);
-      setCurrentPage("app");
+      setTimeout(() => {
+        setCurrentPage("app");
+        setPageTransition(false);
+      }, 300);
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user");
-    setAuthenticated(false);
-    setUser(null);
-    setCurrentPage("login");
-    setCourses([]);
-    setSelectedCourseId(null);
-    setTasks([]);
-    setMaterials([]);
+  const handleRegister = () => {
+    setPageTransition(true);
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      setUser(JSON.parse(userStr));
+      setAuthenticated(true);
+      setTimeout(() => {
+        setCurrentPage("app");
+        setPageTransition(false);
+      }, 300);
+    }
   };
+
+  // Show logout overlay
+  if (loggingOut) {
+    return (
+      <div className="logout-overlay">
+        <div className="logout-content" style={{ textAlign: "center", color: "#fff" }}>
+          <div className="loading-spinner" style={{ width: "48px", height: "48px", borderWidth: "4px", margin: "0 auto 1rem" }}></div>
+          <p style={{ fontSize: "18px", fontFamily: "var(--font-body)", fontWeight: 600, letterSpacing: "-0.01em" }}>Signing you out...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Show loading while checking auth
   if (authenticated === null) {
     return (
-      <div style={{ 
+      <div className="gradient-animated" style={{ 
         minHeight: "100vh", 
         display: "flex", 
         alignItems: "center", 
         justifyContent: "center",
-        background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
         color: "#fff"
       }}>
-        Loading...
+        <div style={{ textAlign: "center" }}>
+          <div className="loading-spinner" style={{ width: "48px", height: "48px", borderWidth: "4px", margin: "0 auto 1rem" }}></div>
+          <p style={{ fontSize: "18px", fontFamily: "var(--font-body)", fontWeight: 600, letterSpacing: "-0.01em" }}>Loading...</p>
+        </div>
       </div>
     );
   }
 
   // Show login page
   if (currentPage === "login") {
-    return <Login onLogin={handleLogin} />;
+    return (
+      <div className={pageTransition ? "page-transition-enter" : ""}>
+        <Login onLogin={handleLogin} />
+      </div>
+    );
   }
 
   // Show register page
   if (currentPage === "register") {
-    return <Register onRegister={handleLogin} />;
+    return (
+      <div className={pageTransition ? "page-transition-enter" : ""}>
+        <Register onRegister={handleRegister} />
+      </div>
+    );
   }
 
   // Show main app
@@ -298,24 +347,30 @@ function App() {
   };
 
   return (
-    <div className="app-root">
+    <div className={`app-root ${pageTransition ? "page-transition-enter" : ""}`}>
       <div className="app-shell">
         <header className="app-header">
           <div>
-            <h1 className="app-title">Study Coach</h1>
+            <h1 className="app-title">Learnium</h1>
             <p className="app-subtitle">
-              Set up your courses, upload syllabi, and generate structured study
-              sessions across the term.
+              Your intelligent study coach. Set up courses, upload syllabi, and generate structured study sessions across the term.
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
             {user && (
-              <span style={{ color: "#cbd5e1", fontSize: "14px" }}>
+              <span style={{ 
+                color: "#cbd5e1", 
+                fontSize: "14px",
+                fontFamily: "var(--font-body)",
+                fontWeight: 500,
+                letterSpacing: "-0.01em"
+              }}>
                 {user.name || user.email}
               </span>
             )}
             <button
               onClick={handleLogout}
+              className="btn-smooth"
               style={{
                 padding: "0.5rem 1rem",
                 background: "rgba(30, 41, 59, 0.8)",
@@ -323,7 +378,8 @@ function App() {
                 borderRadius: "6px",
                 color: "#cbd5e1",
                 fontSize: "14px",
-                cursor: "pointer"
+                cursor: "pointer",
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
               }}
             >
               Logout

@@ -1,6 +1,6 @@
 # 🔧 MongoDB Database Access Guide
 
-This guide shows you how to access and manage your Study Coach MongoDB database.
+This guide shows you how to access and manage your Learnium MongoDB database.
 
 ---
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MongoDB Utility Scripts for Study Coach
+MongoDB Utility Scripts for Learnium
 Use this script to manage your database from the command line.
 """
 
