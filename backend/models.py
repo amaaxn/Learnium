@@ -66,22 +66,39 @@ def get_study_tasks_collection():
 class LazyCollection:
     def __init__(self, name):
         self.name = name
+    
+    def _get_collection(self):
+        """Get the actual collection (lazy-loaded after fork)."""
+        return get_collection(self.name)
+    
     def __getattr__(self, attr):
-        return getattr(get_collection(self.name), attr)
+        """Proxy all other attributes to the actual collection."""
+        return getattr(self._get_collection(), attr)
+    
+    # Explicitly define common methods for clarity
     def find(self, *args, **kwargs):
-        return get_collection(self.name).find(*args, **kwargs)
+        return self._get_collection().find(*args, **kwargs)
+    
     def find_one(self, *args, **kwargs):
-        return get_collection(self.name).find_one(*args, **kwargs)
+        return self._get_collection().find_one(*args, **kwargs)
+    
     def insert_one(self, *args, **kwargs):
-        return get_collection(self.name).insert_one(*args, **kwargs)
+        return self._get_collection().insert_one(*args, **kwargs)
+    
     def update_one(self, *args, **kwargs):
-        return get_collection(self.name).update_one(*args, **kwargs)
+        return self._get_collection().update_one(*args, **kwargs)
+    
+    def delete_one(self, *args, **kwargs):
+        return self._get_collection().delete_one(*args, **kwargs)
+    
     def delete_many(self, *args, **kwargs):
-        return get_collection(self.name).delete_many(*args, **kwargs)
+        return self._get_collection().delete_many(*args, **kwargs)
+    
     def create_index(self, *args, **kwargs):
-        return get_collection(self.name).create_index(*args, **kwargs)
+        return self._get_collection().create_index(*args, **kwargs)
+    
     def update_many(self, *args, **kwargs):
-        return get_collection(self.name).update_many(*args, **kwargs)
+        return self._get_collection().update_many(*args, **kwargs)
 
 users_collection = LazyCollection("users")
 courses_collection = LazyCollection("courses")
