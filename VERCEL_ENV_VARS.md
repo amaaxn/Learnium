@@ -21,8 +21,10 @@ You **MUST** set `VITE_API_URL` in Vercel to point to your Railway backend.
 - ✅ `https://your-backend.up.railway.app/api`
 
 ### Incorrect Examples:
+- ❌ `learnium-production.up.railway.app` (missing `https://` and `/api`)
 - ❌ `https://learnium-production.up.railway.app` (missing `/api`)
 - ❌ `https://learnium-production.up.railway.app/` (has trailing slash, might work but not recommended)
+- ❌ `http://learnium-production.up.railway.app/api` (use `https://` not `http://` in production)
 
 ### After Setting:
 
