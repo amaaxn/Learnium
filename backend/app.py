@@ -177,27 +177,11 @@ except Exception as e:
 @app.route("/")
 def health():
     """Health check endpoint for monitoring and Railway health checks."""
-    # Fast health check - don't block on MongoDB for Railway health checks
-    response_data = {
-        "status": "ok",
-        "environment": "production" if IS_PRODUCTION else "development",
-        "timestamp": datetime.utcnow().isoformat()
-    }
-    
-    # Try MongoDB check, but don't fail if it times out
-    try:
-        from models import get_db
-        db = get_db()
-        # Use a quick ping with short timeout
-        db.command('ping', maxTimeMS=1000)
-        response_data["database"] = "connected"
-    except Exception as e:
-        # Log but don't fail health check
-        response_data["database"] = "error: " + str(e)[:50]  # Truncate long errors
-    
-    response = jsonify(response_data)
-    response.status_code = 200
-    return response
+    # Fast, simple health check that Railway can verify quickly
+    # Return minimal response to avoid any timeout issues
+    return jsonify({
+        "status": "ok"
+    }), 200
 
 # Error handlers
 @app.errorhandler(404)

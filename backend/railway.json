@@ -9,8 +9,7 @@
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10,
     "healthcheckPath": "/api/health",
-    "healthcheckTimeout": 30,
-    "healthcheckInterval": 30,
-    "restartPolicyTimeout": 300
+    "healthcheckTimeout": 10,
+    "healthcheckInterval": 10
   }
 }
