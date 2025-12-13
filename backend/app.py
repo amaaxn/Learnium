@@ -55,6 +55,23 @@ if IS_PRODUCTION:
             frontend_url.replace("https://", "http://", 1),  # Allow HTTP too for flexibility
             frontend_url.replace("http://", "https://", 1).rstrip('/')
         ]
+        
+        # Also add www and non-www variants
+        if "www." in frontend_url:
+            # If URL has www, also allow without www
+            non_www = frontend_url.replace("www.", "", 1)
+            allowed_origins.extend([non_www, non_www.rstrip('/')])
+        else:
+            # If URL doesn't have www, also allow with www
+            # Only add www if it's a domain (not localhost)
+            if not frontend_url.startswith("http://localhost") and not frontend_url.startswith("https://localhost"):
+                www_url = frontend_url.replace("://", "://www.", 1)
+                allowed_origins.extend([www_url, www_url.rstrip('/')])
+                # Also add https variant if it was http
+                if www_url.startswith("http://"):
+                    www_https = www_url.replace("http://", "https://", 1)
+                    allowed_origins.extend([www_https, www_https.rstrip('/')])
+        
         # Remove duplicates while preserving order
         allowed_origins = list(dict.fromkeys([o for o in allowed_origins if o]))
         print(f"✅ CORS configured for: {allowed_origins}")
