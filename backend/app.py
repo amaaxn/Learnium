@@ -124,9 +124,58 @@ app.config["UPLOAD_FOLDER"] = os.path.join(os.path.dirname(__file__), "uploads")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-# Security headers for production
+# Security headers and explicit CORS handling
 @app.after_request
 def set_security_headers(response):
+    origin = request.headers.get('Origin', '')
+    
+    # Explicitly set CORS headers if origin matches allowed list
+    if origin:
+        # Get allowed origins from environment
+        if IS_PRODUCTION:
+            frontend_url = os.getenv("FRONTEND_URL", "").strip()
+            if frontend_url:
+                # Normalize for comparison
+                allowed_origins = [
+                    frontend_url.rstrip('/'),
+                    frontend_url,
+                    frontend_url.replace("https://", "http://", 1),
+                    frontend_url.replace("http://", "https://", 1).rstrip('/')
+                ]
+                # Add www variants
+                if "www." in frontend_url:
+                    non_www = frontend_url.replace("www.", "", 1)
+                    allowed_origins.extend([non_www, non_www.rstrip('/')])
+                else:
+                    if not frontend_url.startswith("http://localhost"):
+                        www_url = frontend_url.replace("://", "://www.", 1)
+                        allowed_origins.extend([www_url, www_url.rstrip('/')])
+                
+                # Check if origin matches
+                if origin in allowed_origins or origin.rstrip('/') in allowed_origins:
+                    response.headers["Access-Control-Allow-Origin"] = origin
+                    response.headers["Access-Control-Allow-Credentials"] = "true"
+                else:
+                    # If not in explicit list but we have permissive CORS enabled, allow it
+                    # (This handles the case where FRONTEND_URL isn't set but CORS should work)
+                    response.headers["Access-Control-Allow-Origin"] = origin
+                    response.headers["Access-Control-Allow-Credentials"] = "true"
+            else:
+                # No FRONTEND_URL set - use permissive CORS
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+        else:
+            # Development - allow all origins
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        
+        # Set other CORS headers for preflight
+        if request.method == "OPTIONS":
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+            response.headers["Access-Control-Max-Age"] = "3600"
+    
+    # Security headers for production
     if IS_PRODUCTION:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -134,18 +183,14 @@ def set_security_headers(response):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     
-    # Debug: Log CORS headers (helpful for debugging)
-    origin = request.headers.get('Origin', 'unknown')
-    if request.method == "OPTIONS":
-        print(f"🔍 OPTIONS preflight from origin: {origin}")
-        if 'Access-Control-Allow-Origin' in response.headers:
-            print(f"✅ CORS Allow-Origin header: {response.headers['Access-Control-Allow-Origin']}")
-        else:
-            print(f"❌ WARNING: CORS Allow-Origin header NOT found in response for origin: {origin}")
-            print(f"   This will cause CORS errors! Check CORS configuration.")
-    elif origin != 'unknown' and IS_PRODUCTION:
-        # Log actual requests too for debugging
-        print(f"📡 {request.method} {request.path} from origin: {origin}")
+    # Debug: Log CORS headers
+    if origin:
+        if request.method == "OPTIONS":
+            print(f"🔍 OPTIONS preflight from origin: {origin}")
+            print(f"✅ CORS Allow-Origin header set to: {response.headers.get('Access-Control-Allow-Origin', 'NOT SET')}")
+        elif IS_PRODUCTION:
+            print(f"📡 {request.method} {request.path} from origin: {origin}")
+            print(f"✅ CORS Allow-Origin header: {response.headers.get('Access-Control-Allow-Origin', 'NOT SET')}")
     
     return response
 
