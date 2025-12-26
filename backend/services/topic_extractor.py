@@ -106,3 +106,4 @@ def extract_key_terms(material: Dict) -> List[str]:
             unique_terms.append(term)
     
     return unique_terms[:20]  # Limit to 20 terms
+

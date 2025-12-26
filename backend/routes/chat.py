@@ -52,3 +52,4 @@ def send_message(user_id):
         if os.getenv("FLASK_ENV") == "production":
             return jsonify({"error": "Failed to get response. Please try again."}), 500
         return jsonify({"error": f"Failed to get response: {str(e)}"}), 500
+

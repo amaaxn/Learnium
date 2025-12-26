@@ -331,3 +331,4 @@ Syllabus:
     except Exception as e:
         print(f"Error analyzing syllabus: {e}")
         return {}
+

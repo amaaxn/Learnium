@@ -339,3 +339,4 @@ export function Register({ onRegister }: RegisterProps) {
     </div>
   );
 }
+

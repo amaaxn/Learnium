@@ -300,3 +300,4 @@ def split_content_for_study(sections: List[Dict], num_sessions: int) -> List[Dic
         study_chunks.append(current_chunk)
     
     return study_chunks
+

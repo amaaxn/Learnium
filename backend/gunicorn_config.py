@@ -11,3 +11,4 @@ def post_fork(server, worker):
     except Exception as e:
         print(f"⚠️  Worker {worker.pid}: MongoDB init error: {e}")
         # Don't crash worker - connection will happen on first use
+

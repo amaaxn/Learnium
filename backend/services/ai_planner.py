@@ -205,3 +205,4 @@ def _generate_fallback_plan(
         })
     
     return tasks
+
