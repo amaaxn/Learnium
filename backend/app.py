@@ -129,20 +129,21 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 def set_security_headers(response):
     origin = request.headers.get('Origin', '')
     
-    # Explicitly set CORS headers if origin matches allowed list
+    # Always set CORS headers if there's an Origin header (browser is making cross-origin request)
     if origin:
-        # Get allowed origins from environment
+        # In production, check if origin matches allowed list
         if IS_PRODUCTION:
             frontend_url = os.getenv("FRONTEND_URL", "").strip()
+            allowed = False
+            
             if frontend_url:
-                # Normalize for comparison
+                # Build allowed origins list (same logic as CORS config)
                 allowed_origins = [
                     frontend_url.rstrip('/'),
                     frontend_url,
                     frontend_url.replace("https://", "http://", 1),
                     frontend_url.replace("http://", "https://", 1).rstrip('/')
                 ]
-                # Add www variants
                 if "www." in frontend_url:
                     non_www = frontend_url.replace("www.", "", 1)
                     allowed_origins.extend([non_www, non_www.rstrip('/')])
@@ -152,16 +153,12 @@ def set_security_headers(response):
                         allowed_origins.extend([www_url, www_url.rstrip('/')])
                 
                 # Check if origin matches
-                if origin in allowed_origins or origin.rstrip('/') in allowed_origins:
-                    response.headers["Access-Control-Allow-Origin"] = origin
-                    response.headers["Access-Control-Allow-Credentials"] = "true"
-                else:
-                    # If not in explicit list but we have permissive CORS enabled, allow it
-                    # (This handles the case where FRONTEND_URL isn't set but CORS should work)
-                    response.headers["Access-Control-Allow-Origin"] = origin
-                    response.headers["Access-Control-Allow-Credentials"] = "true"
+                allowed = origin in allowed_origins or origin.rstrip('/') in allowed_origins
             else:
-                # No FRONTEND_URL set - use permissive CORS
+                # No FRONTEND_URL - allow all (permissive mode)
+                allowed = True
+            
+            if allowed:
                 response.headers["Access-Control-Allow-Origin"] = origin
                 response.headers["Access-Control-Allow-Credentials"] = "true"
         else:
@@ -169,7 +166,7 @@ def set_security_headers(response):
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
         
-        # Set other CORS headers for preflight
+        # Always set preflight headers for OPTIONS requests
         if request.method == "OPTIONS":
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
             response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
