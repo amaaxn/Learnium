@@ -68,49 +68,59 @@ if IS_PRODUCTION:
     frontend_url = os.getenv("FRONTEND_URL", "").strip()
     print(f"🔧 FRONTEND_URL: {frontend_url if frontend_url else 'NOT SET'}")
     
-    # Always allow Vercel preview deployments (they have vercel.app domain)
-    allowed_origins = []
-    
-    # Add Vercel preview pattern - allow all *.vercel.app domains
-    allowed_origins.append(r"https://.*\.vercel\.app")
-    
-    if frontend_url:
-        # Normalize URL - ensure HTTPS for production
-        if frontend_url.startswith("http://") and IS_PRODUCTION:
-            print(f"⚠️  WARNING: FRONTEND_URL uses HTTP, converting to HTTPS for production")
-            frontend_url = frontend_url.replace("http://", "https://", 1)
+    # Function to check if origin is allowed (supports Vercel previews)
+    def is_origin_allowed(origin):
+        if not origin:
+            return False
         
-        # Support both with and without trailing slash, and both http/https variants
-        allowed_origins.extend([
-            frontend_url.rstrip('/'),
-            frontend_url,
-            frontend_url.replace("https://", "http://", 1),  # Allow HTTP too for flexibility
-            frontend_url.replace("http://", "https://", 1).rstrip('/')
-        ])
+        # Always allow Vercel preview deployments
+        if ".vercel.app" in origin:
+            return True
         
-        # Also add www and non-www variants
-        if "www." in frontend_url:
-            # If URL has www, also allow without www
-            non_www = frontend_url.replace("www.", "", 1)
-            allowed_origins.extend([non_www, non_www.rstrip('/')])
+        if not frontend_url:
+            # No FRONTEND_URL set - allow all (permissive mode)
+            return True
+        
+        # Normalize for comparison
+        origin_clean = origin.rstrip('/')
+        frontend_clean = frontend_url.rstrip('/')
+        
+        # Check exact match
+        if origin_clean == frontend_clean:
+            return True
+        
+        # Check www/non-www variants
+        if "www." in frontend_clean:
+            non_www = frontend_clean.replace("www.", "", 1)
+            if origin_clean == non_www:
+                return True
         else:
-            # If URL doesn't have www, also allow with www
-            # Only add www if it's a domain (not localhost)
-            if not frontend_url.startswith("http://localhost") and not frontend_url.startswith("https://localhost"):
-                www_url = frontend_url.replace("://", "://www.", 1)
-                allowed_origins.extend([www_url, www_url.rstrip('/')])
-                # Also add https variant if it was http
-                if www_url.startswith("http://"):
-                    www_https = www_url.replace("http://", "https://", 1)
-                    allowed_origins.extend([www_https, www_https.rstrip('/')])
+            www_version = frontend_clean.replace("://", "://www.", 1)
+            if origin_clean == www_version:
+                return True
+        
+        # Check http/https variants
+        if origin_clean == frontend_clean.replace("https://", "http://"):
+            return True
+        if origin_clean == frontend_clean.replace("http://", "https://"):
+            return True
+        
+        return False
     
-    # Remove duplicates while preserving order
-    allowed_origins = list(dict.fromkeys([o for o in allowed_origins if o]))
-    print(f"✅ CORS configured for: {allowed_origins}")
-    print(f"🔍 Will allow requests from Vercel previews and: {frontend_url if frontend_url else 'ALL origins (FRONTEND_URL not set)'}")
+    # Build allowed origins list for logging
+    allowed_origins_list = []
+    if frontend_url:
+        allowed_origins_list.append(frontend_url)
+        if "www." in frontend_url:
+            allowed_origins_list.append(frontend_url.replace("www.", "", 1))
+        else:
+            allowed_origins_list.append(frontend_url.replace("://", "://www.", 1))
+    allowed_origins_list.append("*.vercel.app (all Vercel previews)")
+    
+    print(f"✅ CORS configured to allow: {', '.join(allowed_origins_list)}")
     
     CORS(app, 
-         origins=allowed_origins,
+         origin=is_origin_allowed,  # Use function to check origins
          supports_credentials=True,
          allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
