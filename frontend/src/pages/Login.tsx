@@ -16,6 +16,23 @@ export function Login({ onLogin }: LoginProps) {
 
   useEffect(() => {
     setMounted(true);
+    
+    // Check backend connection on mount
+    const checkConnection = async () => {
+      try {
+        await api.get("/health");
+        console.log("✅ Backend connection successful");
+      } catch (err: any) {
+        console.error("❌ Backend connection failed:", err);
+        if (!err.response) {
+          console.error("🌐 API Base URL:", import.meta.env.VITE_API_URL || "/api");
+          setError("Cannot connect to server. Please check your internet connection or try again later.");
+        }
+      }
+    };
+    
+    checkConnection();
+    
     return () => setMounted(false);
   }, []);
 

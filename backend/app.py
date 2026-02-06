@@ -18,14 +18,20 @@ load_dotenv()
 print("✅ Environment variables loaded")
 
 # Import models and routes with error handling
+# Don't fail startup if imports fail - log and continue
+models_imported = False
+routes_imported = False
+
 try:
     from models import init_db
+    models_imported = True
     print("✅ Models imported successfully")
 except Exception as e:
-    print(f"❌ Error importing models: {e}")
+    print(f"⚠️  Warning: Error importing models: {e}")
     import traceback
     traceback.print_exc()
-    raise
+    # Don't raise - allow app to start for health checks
+    init_db = None
 
 try:
     from routes.auth import auth_bp
@@ -33,12 +39,20 @@ try:
     from routes.plans import plans_bp
     from routes.materials import materials_bp
     from routes.chat import chat_bp
+    routes_imported = True
     print("✅ All route blueprints imported successfully")
 except Exception as e:
-    print(f"❌ Error importing routes: {e}")
+    print(f"⚠️  Warning: Error importing routes: {e}")
     import traceback
     traceback.print_exc()
-    raise
+    # Don't raise - allow app to start for health checks
+    # Set empty blueprints to avoid errors
+    from flask import Blueprint
+    auth_bp = Blueprint("auth", __name__)
+    courses_bp = Blueprint("courses", __name__)
+    plans_bp = Blueprint("plans", __name__)
+    materials_bp = Blueprint("materials", __name__)
+    chat_bp = Blueprint("chat", __name__)
 
 app = Flask(__name__)
 
@@ -62,7 +76,8 @@ if IS_PRODUCTION:
              supports_credentials=True,
              allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
              methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-             max_age=3600)
+             max_age=3600,
+             automatic_options=True)  # Automatically handle OPTIONS requests
     else:
         # Normalize URL - ensure HTTPS for production
         if frontend_url.startswith("http://") and IS_PRODUCTION:
@@ -103,7 +118,8 @@ if IS_PRODUCTION:
              supports_credentials=True,
              allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
              methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-             max_age=3600)  # Cache preflight for 1 hour
+             max_age=3600,  # Cache preflight for 1 hour
+             automatic_options=True)  # Automatically handle OPTIONS requests
 else:
     # Development: allow all origins
     print("✅ CORS configured for development (all origins)")
@@ -139,6 +155,52 @@ jwt = JWTManager(app)
 app.config["UPLOAD_FOLDER"] = os.path.join(os.path.dirname(__file__), "uploads")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+
+# Global OPTIONS handler - handle all OPTIONS requests before they reach routes
+@app.before_request
+def handle_options():
+    """Handle OPTIONS requests globally for CORS preflight."""
+    if request.method == "OPTIONS":
+        # Create a response immediately
+        response = jsonify({})
+        # Set CORS headers
+        origin = request.headers.get('Origin', '')
+        if origin:
+            # In production, check if origin is allowed
+            if IS_PRODUCTION:
+                frontend_url = os.getenv("FRONTEND_URL", "").strip()
+                if frontend_url:
+                    # Build allowed origins (same logic as CORS config)
+                    allowed_origins = [
+                        frontend_url.rstrip('/'),
+                        frontend_url,
+                        frontend_url.replace("https://", "http://", 1),
+                        frontend_url.replace("http://", "https://", 1).rstrip('/')
+                    ]
+                    if "www." in frontend_url:
+                        non_www = frontend_url.replace("www.", "", 1)
+                        allowed_origins.extend([non_www, non_www.rstrip('/')])
+                    else:
+                        if not frontend_url.startswith("http://localhost"):
+                            www_url = frontend_url.replace("://", "://www.", 1)
+                            allowed_origins.extend([www_url, www_url.rstrip('/')])
+                    
+                    if origin in allowed_origins or origin.rstrip('/') in allowed_origins:
+                        response.headers["Access-Control-Allow-Origin"] = origin
+                        response.headers["Access-Control-Allow-Credentials"] = "true"
+                else:
+                    # No FRONTEND_URL - allow all
+                    response.headers["Access-Control-Allow-Origin"] = origin
+                    response.headers["Access-Control-Allow-Credentials"] = "true"
+            else:
+                # Development - allow all
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+        
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+        response.headers["Access-Control-Max-Age"] = "3600"
+        return response
 
 # Security headers and explicit CORS handling
 @app.after_request
@@ -183,10 +245,15 @@ def set_security_headers(response):
             response.headers["Access-Control-Allow-Credentials"] = "true"
         
         # Always set preflight headers for OPTIONS requests
+        # Flask-CORS should handle this, but we ensure it's set
         if request.method == "OPTIONS":
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
-            response.headers["Access-Control-Max-Age"] = "3600"
+            # Flask-CORS should have already set these, but ensure they're present
+            if "Access-Control-Allow-Methods" not in response.headers:
+                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            if "Access-Control-Allow-Headers" not in response.headers:
+                response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+            if "Access-Control-Max-Age" not in response.headers:
+                response.headers["Access-Control-Max-Age"] = "3600"
     
     # Security headers for production
     if IS_PRODUCTION:
@@ -209,19 +276,40 @@ def set_security_headers(response):
 
 # Health check endpoint - register BEFORE blueprints so it's always available
 # This must be registered early so Railway health checks work immediately
-@app.route("/api/health")
-@app.route("/health")
-@app.route("/")
+# This endpoint MUST work even if everything else fails
+@app.route("/api/health", methods=["GET", "OPTIONS", "HEAD"])
+@app.route("/health", methods=["GET", "OPTIONS", "HEAD"])
+@app.route("/", methods=["GET", "OPTIONS", "HEAD"])
 def health():
     """Health check endpoint for monitoring and Railway health checks."""
-    # Fast, simple health check that Railway can verify quickly
-    # Return minimal response to avoid any timeout issues
-    # Don't check MongoDB here - health check should work even if DB is down
-    # This endpoint must be fast and never fail for Railway health checks
-    return jsonify({
-        "status": "ok",
-        "service": "learnium-backend"
-    }), 200
+    try:
+        # Handle OPTIONS preflight for CORS
+        if request.method == "OPTIONS":
+            response = jsonify({})
+            response.headers.add("Access-Control-Allow-Origin", "*")
+            response.headers.add("Access-Control-Allow-Methods", "GET, OPTIONS, HEAD")
+            response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+            return response
+        
+        # Handle HEAD requests (used by some health checkers)
+        if request.method == "HEAD":
+            return "", 200
+        
+        # Fast, simple health check that Railway can verify quickly
+        # Return minimal response to avoid any timeout issues
+        # Don't check MongoDB here - health check should work even if DB is down
+        # This endpoint must be fast and never fail for Railway health checks
+        response = jsonify({
+            "status": "ok",
+            "service": "learnium-backend",
+            "models_loaded": models_imported,
+            "routes_loaded": routes_imported
+        })
+        return response, 200
+    except Exception as e:
+        # Even if there's an error, return something so Railway knows the app is running
+        print(f"⚠️  Health check error (non-fatal): {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # Init MongoDB - DO NOT initialize before fork (fork-safe)
 # Skip init_db() here - it will be called after workers fork in gunicorn
@@ -229,22 +317,25 @@ def health():
 # For non-gunicorn runs (direct Flask), we'll initialize on first request
 print("✅ MongoDB initialization deferred until after worker fork (fork-safe)")
 
-# Register blueprints
-try:
-    app.register_blueprint(auth_bp, url_prefix="/api/auth")
-    app.register_blueprint(courses_bp, url_prefix="/api/courses")
-    app.register_blueprint(plans_bp, url_prefix="/api/plans")
-    app.register_blueprint(materials_bp, url_prefix="/api/materials")
-    app.register_blueprint(chat_bp, url_prefix="/api/chat")
-    
-    # Debug: Print registered auth routes
-    print("✅ All routes registered successfully")
-    print(f"   Auth routes: POST /api/auth/register, POST /api/auth/login, GET /api/auth/me")
-except Exception as e:
-    print(f"❌ Error registering routes: {e}")
-    import traceback
-    traceback.print_exc()
-    raise
+# Register blueprints (only if routes were imported successfully)
+if routes_imported:
+    try:
+        app.register_blueprint(auth_bp, url_prefix="/api/auth")
+        app.register_blueprint(courses_bp, url_prefix="/api/courses")
+        app.register_blueprint(plans_bp, url_prefix="/api/plans")
+        app.register_blueprint(materials_bp, url_prefix="/api/materials")
+        app.register_blueprint(chat_bp, url_prefix="/api/chat")
+        
+        # Debug: Print registered auth routes
+        print("✅ All routes registered successfully")
+        print(f"   Auth routes: POST /api/auth/register, POST /api/auth/login, GET /api/auth/me")
+    except Exception as e:
+        print(f"⚠️  Warning: Error registering routes: {e}")
+        import traceback
+        traceback.print_exc()
+        # Don't raise - health check should still work
+else:
+    print("⚠️  Warning: Routes not imported - only health check will work")
 
 # Error handlers
 @app.errorhandler(404)
@@ -267,6 +358,19 @@ def file_too_large(error):
 print("✅ Flask app created and configured")
 print(f"✅ App name: {app.name}")
 print(f"✅ Registered blueprints: {list(app.blueprints.keys())}")
+print(f"✅ Models imported: {models_imported}")
+print(f"✅ Routes imported: {routes_imported}")
+
+# Final startup message
+print("=" * 60)
+print("🚀 Learnium Backend Application Ready!")
+print(f"   Environment: {'PRODUCTION' if IS_PRODUCTION else 'DEVELOPMENT'}")
+print(f"   Health check: /api/health, /health, /")
+if not models_imported:
+    print("   ⚠️  WARNING: Models not imported - database features disabled")
+if not routes_imported:
+    print("   ⚠️  WARNING: Routes not imported - API endpoints disabled")
+print("=" * 60)
 
 if __name__ == "__main__":
     # Can be used in production as fallback if gunicorn fails

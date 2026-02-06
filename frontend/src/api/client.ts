@@ -29,10 +29,17 @@ if (API_BASE_URL && API_BASE_URL !== "/api") {
 
 console.log("🌐 API Base URL:", API_BASE_URL);
 console.log("🌐 VITE_API_URL env var:", import.meta.env.VITE_API_URL);
+console.log("🌐 Environment:", import.meta.env.MODE);
+
+// Warn if using relative URL in production (might not work)
+if (API_BASE_URL === "/api" && import.meta.env.MODE === "production") {
+  console.warn("⚠️ Using relative API URL in production. Make sure frontend and backend are on the same domain, or set VITE_API_URL environment variable.");
+}
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // 30 second timeout
+  timeout: 10000, // 10 second timeout (reduced from 30s)
+  withCredentials: true, // Include cookies for CORS
 });
 
 // Add token to requests if available
@@ -65,9 +72,24 @@ api.interceptors.response.use(
       }
     }
     
-    // Log network errors
+    // Log network errors with more detail
     if (!error.response) {
-      console.error("Network error - is backend accessible?", API_BASE_URL);
+      if (error.code === 'ECONNABORTED') {
+        console.error(`⏱️ Request timeout after ${error.config?.timeout || 10000}ms`);
+        console.error(`🌐 Backend URL: ${API_BASE_URL}`);
+        console.error(`💡 Check if backend is running and accessible`);
+      } else if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
+        console.error("❌ Network error - cannot reach backend");
+        console.error(`🌐 Backend URL: ${API_BASE_URL}`);
+        console.error(`💡 Possible causes:`);
+        console.error(`   - Backend is not running`);
+        console.error(`   - CORS is blocking the request`);
+        console.error(`   - Network connectivity issue`);
+        console.error(`   - Backend URL is incorrect`);
+      } else {
+        console.error("❌ Network error:", error.message);
+        console.error(`🌐 Backend URL: ${API_BASE_URL}`);
+      }
     }
     
     return Promise.reject(error);
