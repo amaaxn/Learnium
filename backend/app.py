@@ -17,12 +17,28 @@ print(f"🔧 Python version: {sys.version}")
 load_dotenv()
 print("✅ Environment variables loaded")
 
-from models import init_db
-from routes.auth import auth_bp
-from routes.courses import courses_bp
-from routes.plans import plans_bp
-from routes.materials import materials_bp
-from routes.chat import chat_bp
+# Import models and routes with error handling
+try:
+    from models import init_db
+    print("✅ Models imported successfully")
+except Exception as e:
+    print(f"❌ Error importing models: {e}")
+    import traceback
+    traceback.print_exc()
+    raise
+
+try:
+    from routes.auth import auth_bp
+    from routes.courses import courses_bp
+    from routes.plans import plans_bp
+    from routes.materials import materials_bp
+    from routes.chat import chat_bp
+    print("✅ All route blueprints imported successfully")
+except Exception as e:
+    print(f"❌ Error importing routes: {e}")
+    import traceback
+    traceback.print_exc()
+    raise
 
 app = Flask(__name__)
 
@@ -191,9 +207,26 @@ def set_security_headers(response):
     
     return response
 
+# Health check endpoint - register BEFORE blueprints so it's always available
+# This must be registered early so Railway health checks work immediately
+@app.route("/api/health")
+@app.route("/health")
+@app.route("/")
+def health():
+    """Health check endpoint for monitoring and Railway health checks."""
+    # Fast, simple health check that Railway can verify quickly
+    # Return minimal response to avoid any timeout issues
+    # Don't check MongoDB here - health check should work even if DB is down
+    # This endpoint must be fast and never fail for Railway health checks
+    return jsonify({
+        "status": "ok",
+        "service": "learnium-backend"
+    }), 200
+
 # Init MongoDB - DO NOT initialize before fork (fork-safe)
 # Skip init_db() here - it will be called after workers fork in gunicorn
 # This prevents the PyMongo "opened before fork" warning
+# For non-gunicorn runs (direct Flask), we'll initialize on first request
 print("✅ MongoDB initialization deferred until after worker fork (fork-safe)")
 
 # Register blueprints
@@ -213,18 +246,6 @@ except Exception as e:
     traceback.print_exc()
     raise
 
-
-@app.route("/api/health")
-@app.route("/health")
-@app.route("/")
-def health():
-    """Health check endpoint for monitoring and Railway health checks."""
-    # Fast, simple health check that Railway can verify quickly
-    # Return minimal response to avoid any timeout issues
-    return jsonify({
-        "status": "ok"
-    }), 200
-
 # Error handlers
 @app.errorhandler(404)
 def not_found(error):
@@ -242,6 +263,11 @@ def file_too_large(error):
     return jsonify({"error": "File too large. Maximum size is 16MB"}), 413
 
 
+# Verify app is ready
+print("✅ Flask app created and configured")
+print(f"✅ App name: {app.name}")
+print(f"✅ Registered blueprints: {list(app.blueprints.keys())}")
+
 if __name__ == "__main__":
     # Can be used in production as fallback if gunicorn fails
     port = int(os.getenv("PORT", 5001))
@@ -249,3 +275,7 @@ if __name__ == "__main__":
     print(f"🚀 Starting Flask server on port {port}")
     print(f"✅ Application ready! Environment: {'PRODUCTION' if IS_PRODUCTION else 'DEVELOPMENT'}")
     app.run(debug=debug_mode, port=port, host="0.0.0.0")
+else:
+    # Running under gunicorn
+    print("✅ App loaded by Gunicorn")
+    print(f"✅ PORT: {os.getenv('PORT', 'NOT SET')}")

@@ -20,13 +20,15 @@ def get_client():
     if _client is None:
         try:
             print(f"🔗 Connecting to MongoDB: {DB_NAME}")
-            _client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+            _client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
             # Test connection
             _client.admin.command('ping')
             print("✅ MongoDB connection successful")
         except Exception as e:
             print(f"❌ MongoDB connection error: {e}")
             print(f"   URI: {MONGO_URI[:50]}..." if len(MONGO_URI) > 50 else f"   URI: {MONGO_URI}")
+            # Reset _client to None so we can retry
+            _client = None
             raise
     return _client
 
@@ -34,7 +36,22 @@ def get_db():
     """Get MongoDB database, initializing client if needed."""
     global _db
     if _db is None:
-        _db = get_client()[DB_NAME]
+        try:
+            client = get_client()
+            _db = client[DB_NAME]
+        except Exception as e:
+            # Retry connection once
+            print("🔄 Retrying MongoDB connection...")
+            global _client
+            _client = None  # Reset to allow retry
+            try:
+                _client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
+                _client.admin.command('ping')
+                print("✅ MongoDB connection successful (retry)")
+                _db = _client[DB_NAME]
+            except Exception as retry_error:
+                print(f"❌ MongoDB connection retry failed: {retry_error}")
+                raise
     return _db
 
 # For backward compatibility, create lazy properties
