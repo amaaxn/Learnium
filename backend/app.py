@@ -158,17 +158,7 @@ app.config["UPLOAD_FOLDER"] = os.path.join(os.path.dirname(__file__), "uploads")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-# Global OPTIONS handler - handle all OPTIONS requests before they reach routes
-@app.before_request
-def handle_options():
-    """Handle OPTIONS requests globally for CORS preflight."""
-    if request.method == "OPTIONS":
-        # Create a response immediately - Flask-CORS will add headers in after_request
-        response = jsonify({})
-        # Let Flask-CORS handle the headers - it's already configured
-        return response
-
-# Security headers - let Flask-CORS handle CORS, we just add security headers
+# Security headers - let Flask-CORS handle CORS automatically, we just add security headers
 @app.after_request
 def set_security_headers(response):
     # Security headers for production
