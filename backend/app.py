@@ -247,10 +247,37 @@ else:
     def dummy_register():
         return jsonify({"error": "Backend routes not loaded. Check server logs."}), 503
 
+# Add a route for /api to help with debugging
+@app.route("/api", methods=["GET", "OPTIONS"])
+def api_root():
+    """Root API endpoint - redirects to health check."""
+    if request.method == "OPTIONS":
+        response = jsonify({})
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add("Access-Control-Allow-Methods", "GET, OPTIONS")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+        return response
+    return jsonify({
+        "message": "Learnium API",
+        "version": "1.0",
+        "endpoints": {
+            "health": "/api/health",
+            "auth": {
+                "register": "/api/auth/register",
+                "login": "/api/auth/login",
+                "me": "/api/auth/me"
+            },
+            "courses": "/api/courses",
+            "plans": "/api/plans",
+            "materials": "/api/materials",
+            "chat": "/api/chat"
+        }
+    }), 200
+
 # Error handlers
 @app.errorhandler(404)
 def not_found(error):
-    return jsonify({"error": "Resource not found"}), 404
+    return jsonify({"error": "Resource not found", "path": request.path}), 404
 
 @app.errorhandler(500)
 def internal_error(error):
