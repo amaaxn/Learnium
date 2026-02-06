@@ -63,35 +63,30 @@ print(f"🔧 Environment: {'PRODUCTION' if IS_PRODUCTION else 'DEVELOPMENT'}")
 print(f"🔧 FLASK_ENV: {os.getenv('FLASK_ENV')}")
 print(f"🔧 ENVIRONMENT: {os.getenv('ENVIRONMENT')}")
 
-# CORS Configuration - restrict to production domain in production
+# CORS Configuration - allow Vercel preview deployments and production domain
 if IS_PRODUCTION:
     frontend_url = os.getenv("FRONTEND_URL", "").strip()
     print(f"🔧 FRONTEND_URL: {frontend_url if frontend_url else 'NOT SET'}")
     
-    if not frontend_url:
-        print("⚠️  WARNING: FRONTEND_URL not set in production. Using permissive CORS.")
-        print("⚠️  This allows ALL origins. Set FRONTEND_URL for security!")
-        # Don't crash - use permissive CORS but log warning
-        CORS(app, 
-             supports_credentials=True,
-             allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-             methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-             max_age=3600,
-             automatic_options=True,
-             resources={r"/api/*": {"origins": "*"}})  # Allow all origins for /api/*
-    else:
+    # Always allow Vercel preview deployments (they have vercel.app domain)
+    allowed_origins = []
+    
+    # Add Vercel preview pattern - allow all *.vercel.app domains
+    allowed_origins.append(r"https://.*\.vercel\.app")
+    
+    if frontend_url:
         # Normalize URL - ensure HTTPS for production
         if frontend_url.startswith("http://") and IS_PRODUCTION:
             print(f"⚠️  WARNING: FRONTEND_URL uses HTTP, converting to HTTPS for production")
             frontend_url = frontend_url.replace("http://", "https://", 1)
         
         # Support both with and without trailing slash, and both http/https variants
-        allowed_origins = [
+        allowed_origins.extend([
             frontend_url.rstrip('/'),
             frontend_url,
             frontend_url.replace("https://", "http://", 1),  # Allow HTTP too for flexibility
             frontend_url.replace("http://", "https://", 1).rstrip('/')
-        ]
+        ])
         
         # Also add www and non-www variants
         if "www." in frontend_url:
@@ -108,20 +103,19 @@ if IS_PRODUCTION:
                 if www_url.startswith("http://"):
                     www_https = www_url.replace("http://", "https://", 1)
                     allowed_origins.extend([www_https, www_https.rstrip('/')])
-        
-        # Remove duplicates while preserving order
-        allowed_origins = list(dict.fromkeys([o for o in allowed_origins if o]))
-        print(f"✅ CORS configured for: {allowed_origins}")
-        print(f"🔍 Will allow requests from these origins: {', '.join(allowed_origins)}")
-        
-        CORS(app, 
-             origins=allowed_origins,
-             supports_credentials=True,
-             allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-             methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-             max_age=3600,  # Cache preflight for 1 hour
-             automatic_options=True,
-             resources={r"/api/*": {"origins": allowed_origins}})  # Explicitly allow /api/* routes
+    
+    # Remove duplicates while preserving order
+    allowed_origins = list(dict.fromkeys([o for o in allowed_origins if o]))
+    print(f"✅ CORS configured for: {allowed_origins}")
+    print(f"🔍 Will allow requests from Vercel previews and: {frontend_url if frontend_url else 'ALL origins (FRONTEND_URL not set)'}")
+    
+    CORS(app, 
+         origins=allowed_origins,
+         supports_credentials=True,
+         allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         max_age=3600,  # Cache preflight for 1 hour
+         automatic_options=True)
 else:
     # Development: allow all origins
     print("✅ CORS configured for development (all origins)")
@@ -186,12 +180,16 @@ def set_security_headers(response):
 @app.route("/", methods=["GET", "OPTIONS", "HEAD"])
 def health():
     """Health check endpoint for monitoring and Railway health checks."""
+    # Flask-CORS will handle OPTIONS automatically, but ensure headers are set
     # Handle OPTIONS preflight for CORS
     if request.method == "OPTIONS":
         response = jsonify({})
-        response.headers.add("Access-Control-Allow-Origin", "*")
+        # Get origin from request
+        origin = request.headers.get('Origin', '*')
+        response.headers.add("Access-Control-Allow-Origin", origin)
         response.headers.add("Access-Control-Allow-Methods", "GET, OPTIONS, HEAD")
-        response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        response.headers.add("Access-Control-Allow-Credentials", "true")
         return response
     
     # Handle HEAD requests (used by some health checkers)
