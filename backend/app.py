@@ -186,34 +186,30 @@ def set_security_headers(response):
 @app.route("/", methods=["GET", "OPTIONS", "HEAD"])
 def health():
     """Health check endpoint for monitoring and Railway health checks."""
-    try:
-        # Handle OPTIONS preflight for CORS
-        if request.method == "OPTIONS":
-            response = jsonify({})
-            response.headers.add("Access-Control-Allow-Origin", "*")
-            response.headers.add("Access-Control-Allow-Methods", "GET, OPTIONS, HEAD")
-            response.headers.add("Access-Control-Allow-Headers", "Content-Type")
-            return response
-        
-        # Handle HEAD requests (used by some health checkers)
-        if request.method == "HEAD":
-            return "", 200
-        
-        # Fast, simple health check that Railway can verify quickly
-        # Return minimal response to avoid any timeout issues
-        # Don't check MongoDB here - health check should work even if DB is down
-        # This endpoint must be fast and never fail for Railway health checks
-        response = jsonify({
-            "status": "ok",
-            "service": "learnium-backend",
-            "models_loaded": models_imported,
-            "routes_loaded": routes_imported
-        })
-        return response, 200
-    except Exception as e:
-        # Even if there's an error, return something so Railway knows the app is running
-        print(f"⚠️  Health check error (non-fatal): {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+    # Handle OPTIONS preflight for CORS
+    if request.method == "OPTIONS":
+        response = jsonify({})
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add("Access-Control-Allow-Methods", "GET, OPTIONS, HEAD")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type")
+        return response
+    
+    # Handle HEAD requests (used by some health checkers)
+    if request.method == "HEAD":
+        return "", 200
+    
+    # Fast, simple health check that Railway can verify quickly
+    # Return minimal response to avoid any timeout issues
+    # Don't check MongoDB here - health check should work even if DB is down
+    # This endpoint must be fast and never fail for Railway health checks
+    response = jsonify({
+        "status": "ok",
+        "service": "learnium-backend",
+        "models_loaded": models_imported,
+        "routes_loaded": routes_imported,
+        "message": "Backend is running"
+    })
+    return response, 200
 
 # Init MongoDB - DO NOT initialize before fork (fork-safe)
 # Skip init_db() here - it will be called after workers fork in gunicorn
@@ -238,8 +234,18 @@ if routes_imported:
         import traceback
         traceback.print_exc()
         # Don't raise - health check should still work
+        # Make sure app object exists even if registration fails
+        pass
 else:
     print("⚠️  Warning: Routes not imported - only health check will work")
+    # Create dummy routes so app doesn't crash
+    @app.route("/api/auth/login", methods=["POST", "OPTIONS"])
+    def dummy_login():
+        return jsonify({"error": "Backend routes not loaded. Check server logs."}), 503
+    
+    @app.route("/api/auth/register", methods=["POST", "OPTIONS"])
+    def dummy_register():
+        return jsonify({"error": "Backend routes not loaded. Check server logs."}), 503
 
 # Error handlers
 @app.errorhandler(404)
