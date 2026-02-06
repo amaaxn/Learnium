@@ -77,7 +77,8 @@ if IS_PRODUCTION:
              allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
              methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
              max_age=3600,
-             automatic_options=True)  # Automatically handle OPTIONS requests
+             automatic_options=True,
+             resources={r"/api/*": {"origins": "*"}})  # Allow all origins for /api/*
     else:
         # Normalize URL - ensure HTTPS for production
         if frontend_url.startswith("http://") and IS_PRODUCTION:
@@ -119,7 +120,8 @@ if IS_PRODUCTION:
              allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
              methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
              max_age=3600,  # Cache preflight for 1 hour
-             automatic_options=True)  # Automatically handle OPTIONS requests
+             automatic_options=True,
+             resources={r"/api/*": {"origins": allowed_origins}})  # Explicitly allow /api/* routes
 else:
     # Development: allow all origins
     print("✅ CORS configured for development (all origins)")
@@ -161,100 +163,14 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 def handle_options():
     """Handle OPTIONS requests globally for CORS preflight."""
     if request.method == "OPTIONS":
-        # Create a response immediately
+        # Create a response immediately - Flask-CORS will add headers in after_request
         response = jsonify({})
-        # Set CORS headers
-        origin = request.headers.get('Origin', '')
-        if origin:
-            # In production, check if origin is allowed
-            if IS_PRODUCTION:
-                frontend_url = os.getenv("FRONTEND_URL", "").strip()
-                if frontend_url:
-                    # Build allowed origins (same logic as CORS config)
-                    allowed_origins = [
-                        frontend_url.rstrip('/'),
-                        frontend_url,
-                        frontend_url.replace("https://", "http://", 1),
-                        frontend_url.replace("http://", "https://", 1).rstrip('/')
-                    ]
-                    if "www." in frontend_url:
-                        non_www = frontend_url.replace("www.", "", 1)
-                        allowed_origins.extend([non_www, non_www.rstrip('/')])
-                    else:
-                        if not frontend_url.startswith("http://localhost"):
-                            www_url = frontend_url.replace("://", "://www.", 1)
-                            allowed_origins.extend([www_url, www_url.rstrip('/')])
-                    
-                    if origin in allowed_origins or origin.rstrip('/') in allowed_origins:
-                        response.headers["Access-Control-Allow-Origin"] = origin
-                        response.headers["Access-Control-Allow-Credentials"] = "true"
-                else:
-                    # No FRONTEND_URL - allow all
-                    response.headers["Access-Control-Allow-Origin"] = origin
-                    response.headers["Access-Control-Allow-Credentials"] = "true"
-            else:
-                # Development - allow all
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Credentials"] = "true"
-        
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
-        response.headers["Access-Control-Max-Age"] = "3600"
+        # Let Flask-CORS handle the headers - it's already configured
         return response
 
-# Security headers and explicit CORS handling
+# Security headers - let Flask-CORS handle CORS, we just add security headers
 @app.after_request
 def set_security_headers(response):
-    origin = request.headers.get('Origin', '')
-    
-    # Always set CORS headers if there's an Origin header (browser is making cross-origin request)
-    if origin:
-        # In production, check if origin matches allowed list
-        if IS_PRODUCTION:
-            frontend_url = os.getenv("FRONTEND_URL", "").strip()
-            allowed = False
-            
-            if frontend_url:
-                # Build allowed origins list (same logic as CORS config)
-                allowed_origins = [
-                    frontend_url.rstrip('/'),
-                    frontend_url,
-                    frontend_url.replace("https://", "http://", 1),
-                    frontend_url.replace("http://", "https://", 1).rstrip('/')
-                ]
-                if "www." in frontend_url:
-                    non_www = frontend_url.replace("www.", "", 1)
-                    allowed_origins.extend([non_www, non_www.rstrip('/')])
-                else:
-                    if not frontend_url.startswith("http://localhost"):
-                        www_url = frontend_url.replace("://", "://www.", 1)
-                        allowed_origins.extend([www_url, www_url.rstrip('/')])
-                
-                # Check if origin matches
-                allowed = origin in allowed_origins or origin.rstrip('/') in allowed_origins
-            else:
-                # No FRONTEND_URL - allow all (permissive mode)
-                allowed = True
-            
-            if allowed:
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Credentials"] = "true"
-        else:
-            # Development - allow all origins
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-        
-        # Always set preflight headers for OPTIONS requests
-        # Flask-CORS should handle this, but we ensure it's set
-        if request.method == "OPTIONS":
-            # Flask-CORS should have already set these, but ensure they're present
-            if "Access-Control-Allow-Methods" not in response.headers:
-                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-            if "Access-Control-Allow-Headers" not in response.headers:
-                response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
-            if "Access-Control-Max-Age" not in response.headers:
-                response.headers["Access-Control-Max-Age"] = "3600"
-    
     # Security headers for production
     if IS_PRODUCTION:
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -263,14 +179,12 @@ def set_security_headers(response):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     
-    # Debug: Log CORS headers
+    # Debug: Log CORS headers (Flask-CORS sets these)
+    origin = request.headers.get('Origin', '')
     if origin:
         if request.method == "OPTIONS":
             print(f"🔍 OPTIONS preflight from origin: {origin}")
-            print(f"✅ CORS Allow-Origin header set to: {response.headers.get('Access-Control-Allow-Origin', 'NOT SET')}")
-        elif IS_PRODUCTION:
-            print(f"📡 {request.method} {request.path} from origin: {origin}")
-            print(f"✅ CORS Allow-Origin header: {response.headers.get('Access-Control-Allow-Origin', 'NOT SET')}")
+        print(f"✅ CORS Allow-Origin: {response.headers.get('Access-Control-Allow-Origin', 'NOT SET')}")
     
     return response
 
